@@ -28,7 +28,7 @@ if __name__ == "__main__":
         c = Analyzer.fromcollection(n, fcollection)
         c.save(ftrained)
         out("saved to " + ftrained + ".\n")
-    
+
     # collect list of raw algorithms
     out("Processing " + falgs + " - extracted ")
     alg_re = re.compile("([URFLDBMESurfldbxyz][2']?[2']? )+([URFLDBMESurfldbxyz][2']?[2']?)") # CE algs
@@ -45,24 +45,57 @@ if __name__ == "__main__":
     out("\b" * len(prevlen))
     out(str(len(raw)) + " algorithms.\n")
 
+    # rotate all algs by the given rotation
+    def rotate_algs(rotation, algs):
+        rot_algs = []
+
+        out("Performing " + rotation + " rotations ")
+        frac = 0
+        for i in range(len(algs)):
+            # progress bar
+            newfrac = progress_bar_size*i // len(algs)
+            if newfrac != frac:
+                out("|"*(newfrac-frac))
+                frac = newfrac
+
+            # rotate and add to alg list
+            for rot in [rotation, rotation + "'", rotation + "2"]:
+                rot_algs.append(parse(rot) + [ trans[parse(rot)[0]][move] for move in algs[i] ])
+            rot_algs.append(algs[i])
+
+        out("|"*(progress_bar_size - frac))
+        out(" - constructed " + str(len(rot_algs)-len(algs)) + " new algorithms.\n")
+
+        return rot_algs
+
+    # rotate algorithms by x,y, and z, depending on the flags
+    rotated_algs = raw
+    for rotation in ["x", "y", "z"]:
+        if ("-" + rotation) in flags:
+            rotated_algs = rotate_algs(rotation, rotated_algs)
+    #print(rotated_algs)
+
     # collect list of rewritten algorithms with substitutions r = L x, l = R x'
-    algs = []
+    subs_algs = []
     if "-s" in flags:
         out("Performing substitutions ")
         rules = {strtomove("L"): [parse("r"), parse("x")[0]], strtomove("L'"): [parse("r'"), parse("x'")[0]],
                  strtomove("R"): [parse("l"), parse("x'")[0]], strtomove("R'"): [parse("l'"), parse("x")[0]],
                  strtomove("L2"): [parse("r2"), parse("x2")[0]], strtomove("R2"): [parse("l2"), parse("x2")[0]]}
         frac = 0
-        for i in range(len(raw)):
-            newfrac = progress_bar_size*i // len(raw)
+        for i in range(len(rotated_algs)):
+            newfrac = progress_bar_size*i // len(rotated_algs)
             if newfrac != frac:
                 out("|"*(newfrac-frac))
                 frac = newfrac
-            algs += rewrite(raw[i], rules)
+            subs_algs += rewrite(rotated_algs[i], rules)
         out("|"*(progress_bar_size - frac))
-        out(" - constructed " + str(len(algs)-len(raw)) + " new algorithms.\n")
+        out(" - constructed " + str(len(subs_algs)-len(rotated_algs)) + " new algorithms.\n")
     else:
-        algs = raw
+        subs_algs = rotated_algs
+
+    #print(subs_algs)
+    algs = subs_algs
 
     # trim algorithms of leading and trailing moves
     if "-tl" in flags:
@@ -94,7 +127,7 @@ if __name__ == "__main__":
     if "-tl" in flags or "-tr" in flags:
         algs = [alg for alg in algs if alg != []]
         out("done.\n")
-    
+
     # TODO: -r [xyz] to consider x, y, and z rotations before each alg (but never two rotations?)
 
     # sort algorithms descending algness, then ascending movecount
@@ -152,7 +185,7 @@ if __name__ == "__main__":
             output.write("%6.2f\t%s\n" % (sorted_algs[i][0], tostr(sorted_algs[i][1])))
         out("|"*(progress_bar_size - frac))
         out(" - done.\n")
-   
+
     if "-p" in flags: # peek at top n algs for each movecount level
         maxpeek = int(flags[flags.index("-p") + 1])
         peeked = 0
